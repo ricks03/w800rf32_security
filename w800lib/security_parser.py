@@ -22,7 +22,7 @@ class SecuritySensorParser:
             return None
         
         address = ((data[0] & 0x0F) << 4) | (data[1] & 0x0F)
-        low_battery = bool(data[1] & 0x20)
+        low_battery = bool(data[2] & 0x01)
         min_delay = not bool(data[1] & 0x10)
         byte2 = data[2]
         

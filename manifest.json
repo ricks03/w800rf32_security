@@ -1,10 +1,10 @@
 {
   "domain": "w800rf32_security",
-  "name": "W800RF32 with Security Sensors",
+  "name": "WGL Designs W800RF32 with Security Sensors",
   "codeowners": [],
-  "documentation": "https://github.com/ricks03/w800rf32_security",
-  "integration_type": "hub",
+  "documentation": "https://www.home-assistant.io/integrations/w800rf32",
   "iot_class": "local_push",
-  "requirements": ["pyserial==3.5"],
-  "version": "1.0.0"
+  "loggers": ["W800rf32"],
+  "quality_scale": "legacy",
+  "requirements": ["pyW800rf32==0.4", "pyserial==3.5"]
 }

@@ -2,7 +2,7 @@
   "domain": "w800rf32_security",
   "name": "W800RF32 with Security Sensors",
   "codeowners": [],
-  "documentation": "https://github.com/YOUR_USERNAME/w800rf32_security",
+  "documentation": "https://github.com/ricks03/w800rf32_security",
   "integration_type": "hub",
   "iot_class": "local_push",
   "requirements": ["pyserial==3.5"],

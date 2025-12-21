@@ -48,9 +48,13 @@ class SecuritySensorParser:
         if not SecuritySensorParser.is_security_packet(data):
             return None
         
+        # Validate DS10A function byte - only bits 0, 2, 7 allowed (mask 0x85)
+        if data[2] & ~0x85:
+            return None
+
         address = ((data[0] & 0x0F) << 4) | (data[1] & 0x0F)
         low_battery = bool(data[2] & 0x01)
-        min_delay = not bool(data[1] & 0x10)
+        min_delay = not bool(data[2] & 0x10) # FIXED: was data[1] & 0x10
         byte2 = data[2]
         
         if byte2 & 0x80:

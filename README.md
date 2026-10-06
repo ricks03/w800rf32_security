@@ -149,10 +149,10 @@ This shows:
 - Trigger the sensor (open/close)
 - Look for log entry like:
   ```
-  RAW PACKET: 5a3f8001
-  Security event: {'device_type': 'ds10a', 'address': '5a', ...}
+  RAW PACKET: 5a55807f
+  Security sensor detected: {'device_type': 'ds10a', 'address': '5a', 'state': 'closed', ...}
   ```
-- Use the `address` value in your config
+- Use the `address` value in your config (it is the first byte of the raw packet)
 
 ### Common Issues
 
@@ -177,7 +177,7 @@ This shows:
 This integration:
 1. Opens the W800RF32 serial connection directly
 2. Intercepts raw 4-byte packets
-3. Checks if packet is security sensor (using upper nibble matching)
+3. Checks if packet is a security sensor (byte 1 = byte 0 with lower nibble inverted, byte 3 = complement of byte 2); corrupted packets are dropped
 4. Routes security packets to custom parser
 5. Routes standard X10 packets to the W800rf32 library
 6. Dispatches events to appropriate binary sensor entities

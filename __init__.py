@@ -33,35 +33,39 @@ class SecuritySensorParser:
     
     @staticmethod
     def is_security_packet(data):
-        """Check if packet is from a security sensor."""
+        """Check if packet is a valid security sensor packet.
+
+        Security packets carry the sensor ID in byte 0 and repeat it in
+        byte 1 with the lower nibble inverted. Byte 3 is the complement of
+        the function code in byte 2. Checking both catches corrupted packets.
+        """
         if len(data) != 4:
             return False
-        
-        upper_nibble_0 = (data[0] >> 4) & 0x0F
-        upper_nibble_1 = (data[1] >> 4) & 0x0F
-        
-        return upper_nibble_0 == upper_nibble_1
-    
+
+        return (data[0] ^ data[1]) == 0x0F and (data[2] ^ data[3]) == 0xFF
+
     @staticmethod
     def parse(data):
         """Parse security sensor packet."""
         if not SecuritySensorParser.is_security_packet(data):
             return None
-        
+
         # Validate DS10A function byte - only bits 0, 2, 7 allowed (mask 0x85)
         if data[2] & ~0x85:
             return None
 
-        address = ((data[0] & 0x0F) << 4) | (data[1] & 0x0F)
+        # Byte 0 is the full 8-bit sensor ID. Byte 1's lower nibble is just
+        # the inverse of byte 0's, so it adds no information.
+        address = data[0]
         low_battery = bool(data[2] & 0x01)
-        min_delay = not bool(data[2] & 0x10) # FIXED: was data[1] & 0x10
+        min_delay = bool(data[2] & 0x04)
         byte2 = data[2]
-        
+
         if byte2 & 0x80:
             contact_state = "closed"
         else:
             contact_state = "open"
-        
+
         return {
             "device_type": "ds10a",
             "address": "{:02x}".format(address),
@@ -163,10 +167,16 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 _LOGGER.debug("RAW PACKET: %s", data.hex())
                 
                 # Try security sensor first
-                security_event = security_parser.parse(data)
-                if security_event:
-                    _LOGGER.debug("Security sensor detected: %s", security_event)
-                    dispatcher_send(hass, SIGNAL_SECURITY_EVENT, security_event)
+                if security_parser.is_security_packet(data):
+                    security_event = security_parser.parse(data)
+                    if security_event:
+                        _LOGGER.debug("Security sensor detected: %s", security_event)
+                        dispatcher_send(hass, SIGNAL_SECURITY_EVENT, security_event)
+                    else:
+                        _LOGGER.debug(
+                            "Ignoring non-DS10A security packet (function 0x%02x)",
+                            data[2],
+                        )
                     continue
                 
                 # Try X10 parsing

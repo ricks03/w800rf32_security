@@ -177,7 +177,7 @@ This shows:
 This integration:
 1. Opens the W800RF32 serial connection directly
 2. Intercepts raw 4-byte packets
-3. Checks if packet is a security sensor (byte 1 = byte 0 with lower nibble inverted, byte 3 = complement of byte 2); corrupted packets are dropped
+3. Checks if packet is a security sensor (byte 1 = byte 0 with lower nibble inverted, byte 3 = complement of byte 2); corrupted packets are dropped, except that a DS10A packet whose only fault is a garbled byte 3 is accepted when the next repeat (within 0.5s) has identical bytes 0-2
 4. Routes security packets to custom parser
 5. Routes standard X10 packets to the W800rf32 library
 6. Dispatches events to appropriate binary sensor entities

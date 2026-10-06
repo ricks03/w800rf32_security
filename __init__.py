@@ -21,6 +21,9 @@ DOMAIN = "w800rf32_security"
 W800RF32_DEVICE = "w800rf32_{}"  # For standard X10 devices
 SIGNAL_SECURITY_EVENT = f"{DOMAIN}_security"  # For security sensors
 
+# Max seconds between two damaged packets for them to count as repeats
+DAMAGED_REPEAT_WINDOW = 0.5
+
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = vol.Schema(
@@ -43,6 +46,28 @@ class SecuritySensorParser:
             return False
 
         return (data[0] ^ data[1]) == 0x0F and (data[2] ^ data[3]) == 0xFF
+
+    @staticmethod
+    def is_damaged_ds10a_packet(data):
+        """Check for a DS10A packet whose only fault is a garbled byte 3.
+
+        The W800RF32 often loses the tail of weak transmissions. Bytes 0-2
+        still look right, but byte 3 no longer matches. These are only
+        trusted once a second packet repeats the same bytes 0-2.
+        """
+        if len(data) != 4:
+            return False
+
+        return (
+            (data[0] ^ data[1]) == 0x0F
+            and not data[2] & ~0x85
+            and (data[2] ^ data[3]) != 0xFF
+        )
+
+    @staticmethod
+    def repair(data):
+        """Rebuild byte 3 of a damaged packet from byte 2."""
+        return bytes(data[:3]) + bytes([data[2] ^ 0xFF])
 
     @staticmethod
     def parse(data):
@@ -144,7 +169,8 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     
     import serial
     import threading
-    
+    import time
+
     security_parser = SecuritySensorParser()
     device = config[DOMAIN][CONF_DEVICE]
     
@@ -157,6 +183,10 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     
     def read_loop():
         """Read and parse packets from W800RF32."""
+        # Last DS10A packet with a garbled byte 3, and when it arrived
+        last_damaged = None
+        last_damaged_time = 0.0
+
         while connection_state['running']:
             try:
                 # Read 4-byte packet
@@ -178,7 +208,29 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
                             data[2],
                         )
                     continue
-                
+
+                # DS10A packet with a garbled byte 3: accept it only when the
+                # next repeat (sent ~130ms apart) has the same bytes 0-2
+                if security_parser.is_damaged_ds10a_packet(data):
+                    now = time.monotonic()
+                    if (
+                        last_damaged == data[:3]
+                        and now - last_damaged_time < DAMAGED_REPEAT_WINDOW
+                    ):
+                        security_event = security_parser.parse(
+                            security_parser.repair(data)
+                        )
+                        _LOGGER.debug(
+                            "Security sensor detected (repeated damaged packet): %s",
+                            security_event,
+                        )
+                        dispatcher_send(hass, SIGNAL_SECURITY_EVENT, security_event)
+                        last_damaged = None
+                    else:
+                        last_damaged = data[:3]
+                        last_damaged_time = now
+                    continue
+
                 # Try X10 parsing
                 try:
                     x10_event = X10Event(data)
